@@ -65,7 +65,7 @@ public:
         const vector<string> words = SplitIntoWordsNoStop(document);
         //Добавляем TF для каждого слова внутри документа
         for (auto& word:words){
-            word_to_documents_freq_[word].insert({document_id, count(words.begin(), words.end(), word)*1.0/words.size()});
+            word_to_documents_freq_[word][document_id] += 1.0 / words.size();
         }
         ++document_count_;
     }
@@ -146,6 +146,10 @@ private:
         return query;
     }
  
+    double CalculatingIDF(const string& word) const{
+        return log(document_count_ * 1.0 / word_to_documents_freq_.at(word).size());
+    }
+    
     vector<Document> FindAllDocuments(const Query& query) const{
         // Метод находит все релевантные документы
         vector<Document> matched_documents;
@@ -153,15 +157,9 @@ private:
         // Находим все документы, релевантные запросу
         for (const auto& word : query.plus_words) {
             if(word_to_documents_freq_.count(word)!=0){
-                // Высчитываем IDF слова в документах
-                double relevanceIDF = log(document_count_*1.0/word_to_documents_freq_.at(word).size());
                 // Высчитываем релевантность TF-IDF для документа
                 for(const auto [id, value]:word_to_documents_freq_.at(word)){
-                    if(document_to_relevance[id]){
-                        document_to_relevance.at(id) += relevanceIDF*value;
-                    } else {
-                        document_to_relevance.at(id) = relevanceIDF*value;
-                    }
+                        document_to_relevance[id] += CalculatingIDF(word) * value;
                 }
             }
         }
