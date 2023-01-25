@@ -49,10 +49,30 @@ vector<string> SplitIntoWords(const string& text) {
 
 // Структура для хранения характеристик документа
 struct Document {
-    int id;
-    double relevance;
-    int rating;
+    Document() = default;
+
+    Document(int id, double relevance, int rating)
+        : id(id)
+        , relevance(relevance)
+        , rating(rating) {
+    }
+
+    int id = 0;
+    double relevance = 0.0;
+    int rating = 0;
 };
+
+template <typename StringContainer>
+set<string> MakeUniqueNonEmptyStrings(const StringContainer& strings) {
+    // Функция создания набора стоп-слов для конструктора класса SearchServer
+    set<string> non_empty_strings;
+    for (const string& str : strings) {
+        if (!str.empty()) {
+            non_empty_strings.insert(str);
+        }
+    }
+    return non_empty_strings;
+}
 
 // Перечислитель для статусов документов
 enum class DocumentStatus {
@@ -64,44 +84,92 @@ enum class DocumentStatus {
  
 class SearchServer {
 public:
-    void SetStopWords(const string& text) {
-        for (const string& word : SplitIntoWords(text)) {
-            stop_words_.insert(word);
+
+    // Defines an invalid document id
+    // You can refer to this constant as SearchServer::INVALID_DOCUMENT_ID
+    inline static constexpr int INVALID_DOCUMENT_ID = -1;
+
+    template <typename StringContainer>
+    explicit SearchServer(const StringContainer& stop_words)
+        : stop_words_(MakeUniqueNonEmptyStrings(stop_words)) {
+        for (const auto& str : stop_words) {
+            for (const auto c : str) {
+                if (c >= 0 && c <= 31) {
+                    throw invalid_argument("Stop words contain invalid symbols");
+                }
+            }
         }
+    }
+
+    explicit SearchServer(const string& stop_words_text)
+        : SearchServer(
+            SplitIntoWords(stop_words_text))  // Invoke delegating constructor from string container
+    {
     }
  
     void AddDocument(
         int document_id,
-        const string& document, 
-        DocumentStatus status, 
-        const vector<int>&ratings) {
+        const string& document,
+        DocumentStatus status,
+        const vector<int>& ratings) {
         //Метод для добавления документов в объект класса
+        //обработка ошибок ввода
+        if (document_id < 0) {
+            throw invalid_argument("Document ID shouldn't be negative number");
+        }
+        for (char c : document) {
+            if (c >= 0 && c <= 31) {
+                throw invalid_argument("Document contain invalid symbols");
+            }
+        }
+        if (documents_.count(document_id) > 0) {
+            throw invalid_argument("Document with that ID already exist");
+        }
         const vector<string> words = SplitIntoWordsNoStop(document);
         //Добавляем TF для каждого слова внутри документа
         const double inv_word_count = 1.0 / words.size();
-        for (auto& word:words){
+        for (auto& word : words) {
             word_to_documents_freq_[word][document_id] += inv_word_count;
         }
-        documents_.emplace(document_id, DocumentData{ComputeAverageRating(ratings), status});
+        documents_.emplace(document_id, DocumentData{ ComputeAverageRating(ratings), status });
         return;
     }
  
     vector<Document> FindTopDocuments(const string& raw_query) const{
-            // Метод для нахождения n самых подходящих документов только по фразе запроса 
-            return FindTopDocuments(raw_query, DocumentStatus::ACTUAL);
+        // Метод для нахождения n самых подходящих документов только по фразе запроса 
+        return FindTopDocuments(raw_query, DocumentStatus::ACTUAL);
     }    
  
     vector<Document> FindTopDocuments(const string& raw_query, const DocumentStatus& current_status) const{
         // Метод для нахождения n самых подходящих документов по фразе запроса и статусу документа 
-            return FindTopDocuments(raw_query, [current_status](
-                int document_id, 
-                DocumentStatus status, 
-                int rating) { return status == current_status; });
+        return FindTopDocuments(raw_query, [current_status](
+            int document_id, 
+            DocumentStatus status, 
+            int rating) { return status == current_status; });
     }
 
     template <typename KeyMaper>
     vector<Document> FindTopDocuments(const string& raw_query, KeyMaper key_map) const {
         // Метод для нахождения n самых подходящих документов по функции-предикату
+        //обработка ошибок ввода
+        {
+            char temp = 'o';
+            bool is_last = false;
+            for (char c : raw_query) {
+                is_last = false;
+                if (c >= 0 && c <= 31) {
+                    throw invalid_argument("Searching queue contain invalid symbols");
+                }
+                if (c == '-') {
+                    is_last = true;
+                    if (temp == '-') {
+                        throw invalid_argument("Searching queue have double minus [--] in it");
+                    }
+                }
+                temp = c;
+            }
+            if (is_last) { throw invalid_argument("Searching queue shouldn't end with [-]"); }
+        }
         const Query query = ParseQuery(raw_query);
         auto matched_documents = FindAllDocuments(query, key_map);
         // Сортируем документы по релевантности и рейтингу
@@ -126,7 +194,26 @@ public:
     }
 
     tuple<vector<string>, DocumentStatus> MatchDocument(const string& raw_query, int document_id) const {
-        // Функция для сравнения документа с параметрами поиска
+        // Метод для сравнения документа с параметрами поиска
+        //обработка ошибок ввода
+        {
+            char temp = 'o';
+            bool is_last = false;
+            for (char c : raw_query) {
+                is_last = false;
+                if (c >= 0 && c <= 31) {
+                    throw invalid_argument("Searching queue contain invalid symbols");
+                }
+                if (c == '-') {
+                    is_last = true;
+                    if (temp == '-') {
+                        throw invalid_argument("Searching queue have double minus [--] in it");
+                    }
+                }
+                temp = c;
+            }
+            if (is_last) { throw invalid_argument("Searching queue shouldn't end with [-]"); }
+        }
         const Query query = ParseQuery(raw_query);
         vector<string> matched_words;
         // Находим совпадения в документе с фразой запроса
@@ -149,6 +236,21 @@ public:
             }
         }
         return {matched_words, documents_.at(document_id).status};
+    }
+
+    int GetDocumentId(int index) const {
+        // Метод для нахождения ID документа по индексу
+        if (documents_.size() < index) {
+            throw out_of_range("Index is out of range");
+        }
+        int count = 0;
+        for (auto& value : documents_) {
+            if (index == count) {
+                return value.first;
+            }
+            ++count;
+        }
+        return INVALID_DOCUMENT_ID;
     }
 
 private:
