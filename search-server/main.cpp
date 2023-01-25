@@ -81,6 +81,13 @@ enum class DocumentStatus {
     BANNED,
     REMOVED,
 };
+
+bool ContainInvalidSymbol(const string& str) {
+    for (char c : str) {
+        if (c >= 0 && c <= 31) { return true; }
+    }
+    return false;
+}
  
 class SearchServer {
 public:
@@ -92,12 +99,8 @@ public:
     template <typename StringContainer>
     explicit SearchServer(const StringContainer& stop_words)
         : stop_words_(MakeUniqueNonEmptyStrings(stop_words)) {
-        for (const auto& str : stop_words) {
-            for (const auto c : str) {
-                if (c >= 0 && c <= 31) {
-                    throw invalid_argument("Stop words contain invalid symbols");
-                }
-            }
+        if (any_of(stop_words_.begin(), stop_words_.end(), [](string str) { return ContainInvalidSymbol(str); })) {
+            throw invalid_argument("Stop words contain invalid symbols");
         }
     }
 
@@ -117,21 +120,20 @@ public:
         if (document_id < 0) {
             throw invalid_argument("Document ID shouldn't be negative number");
         }
-        for (char c : document) {
-            if (c >= 0 && c <= 31) {
-                throw invalid_argument("Document contain invalid symbols");
-            }
-        }
         if (documents_.count(document_id) > 0) {
             throw invalid_argument("Document with that ID already exist");
         }
         const vector<string> words = SplitIntoWordsNoStop(document);
+        if (any_of(words.begin(), words.end(), [](string str) { return ContainInvalidSymbol(str); })) {
+            throw invalid_argument("Document contain invalid symbols");
+        }
         //Добавляем TF для каждого слова внутри документа
         const double inv_word_count = 1.0 / words.size();
         for (auto& word : words) {
             word_to_documents_freq_[word][document_id] += inv_word_count;
         }
         documents_.emplace(document_id, DocumentData{ ComputeAverageRating(ratings), status });
+        index_.push_back(document_id);
         return;
     }
  
@@ -151,26 +153,12 @@ public:
     template <typename KeyMaper>
     vector<Document> FindTopDocuments(const string& raw_query, KeyMaper key_map) const {
         // Метод для нахождения n самых подходящих документов по функции-предикату
-        //обработка ошибок ввода
-        {
-            char temp = 'o';
-            bool is_last = false;
-            for (char c : raw_query) {
-                is_last = false;
-                if (c >= 0 && c <= 31) {
-                    throw invalid_argument("Searching queue contain invalid symbols");
-                }
-                if (c == '-') {
-                    is_last = true;
-                    if (temp == '-') {
-                        throw invalid_argument("Searching queue have double minus [--] in it");
-                    }
-                }
-                temp = c;
-            }
-            if (is_last) { throw invalid_argument("Searching queue shouldn't end with [-]"); }
-        }
         const Query query = ParseQuery(raw_query);
+        //обработка ошибок ввода
+        if (any_of(query.plus_words.begin(), query.plus_words.end(), [](string str) { return ContainInvalidSymbol(str); }) || 
+            any_of(query.minus_words.begin(), query.minus_words.end(), [](string str) { return ContainInvalidSymbol(str); })) {
+            throw invalid_argument("Searching queue contain invalid symbol");
+        }
         auto matched_documents = FindAllDocuments(query, key_map);
         // Сортируем документы по релевантности и рейтингу
         sort(matched_documents.begin(), matched_documents.end(),
@@ -196,25 +184,11 @@ public:
     tuple<vector<string>, DocumentStatus> MatchDocument(const string& raw_query, int document_id) const {
         // Метод для сравнения документа с параметрами поиска
         //обработка ошибок ввода
-        {
-            char temp = 'o';
-            bool is_last = false;
-            for (char c : raw_query) {
-                is_last = false;
-                if (c >= 0 && c <= 31) {
-                    throw invalid_argument("Searching queue contain invalid symbols");
-                }
-                if (c == '-') {
-                    is_last = true;
-                    if (temp == '-') {
-                        throw invalid_argument("Searching queue have double minus [--] in it");
-                    }
-                }
-                temp = c;
-            }
-            if (is_last) { throw invalid_argument("Searching queue shouldn't end with [-]"); }
-        }
         const Query query = ParseQuery(raw_query);
+        if (any_of(query.plus_words.begin(), query.plus_words.end(), [](string str) { return ContainInvalidSymbol(str); }) ||
+            any_of(query.minus_words.begin(), query.minus_words.end(), [](string str) { return ContainInvalidSymbol(str); })) {
+            throw invalid_argument("Searching queue contain invalid symbol");
+        }
         vector<string> matched_words;
         // Находим совпадения в документе с фразой запроса
         for (const string& word : query.plus_words) {
@@ -243,14 +217,7 @@ public:
         if (documents_.size() < index) {
             throw out_of_range("Index is out of range");
         }
-        int count = 0;
-        for (auto& value : documents_) {
-            if (index == count) {
-                return value.first;
-            }
-            ++count;
-        }
-        return INVALID_DOCUMENT_ID;
+        return index_[index];
     }
 
 private:
@@ -274,6 +241,7 @@ private:
     /*Параметры класса*/
     map<string, map<int, double>> word_to_documents_freq_;
     map<int, DocumentData> documents_;
+    vector<int> index_;
     set<string> stop_words_;
  
     bool IsStopWord(const string& word) const {
@@ -305,12 +273,19 @@ private:
  
     QueryWord ParseQueryWord(string text) const {
         bool is_minus = false;
+        // Добавлены проверки на корректность расположения [-]
+        if (text.back() == '-') {
+            throw invalid_argument("Searching queue have minus [-] in the end of some word");
+        }
         // Текст не должен быть пустой строкой
         if (text[0] == '-') {
+            if (text[1] == '-') {
+                throw invalid_argument("Searching queue have double minus [--] in the begining of some word");
+            }
             is_minus = true;
             text = text.substr(1);
         }
-        return {text, is_minus, IsStopWord(text)};
+        return { text, is_minus, IsStopWord(text) };
     }
  
     Query ParseQuery(const string& text) const {
