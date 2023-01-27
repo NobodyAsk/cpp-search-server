@@ -99,7 +99,7 @@ public:
     template <typename StringContainer>
     explicit SearchServer(const StringContainer& stop_words)
         : stop_words_(MakeUniqueNonEmptyStrings(stop_words)) {
-        if (any_of(stop_words_.begin(), stop_words_.end(), [](string str) { return ContainInvalidSymbol(str); })) {
+        if (any_of(stop_words_.begin(), stop_words_.end(), [](const string& str) { return ContainInvalidSymbol(str); })) {
             throw invalid_argument("Stop words contain invalid symbols");
         }
     }
@@ -214,10 +214,7 @@ public:
 
     int GetDocumentId(int index) const {
         // Метод для нахождения ID документа по индексу
-        if (documents_.size() < index) {
-            throw out_of_range("Index is out of range");
-        }
-        return index_[index];
+        return index_.at(index);
     }
 
 private:
@@ -284,6 +281,9 @@ private:
             }
             is_minus = true;
             text = text.substr(1);
+        }
+        if (ContainInvalidSymbol(text)) {
+            throw invalid_argument("Searching queue contain invalid symbol");
         }
         return { text, is_minus, IsStopWord(text) };
     }
