@@ -6,31 +6,17 @@
 
 void RemoveDuplicates(SearchServer& search_server) {
     std::set<int> id_to_erase;
-    for (auto l_it = search_server.begin(); l_it != search_server.end() - 1; ++l_it) {
-        int l_id = *l_it;
-        if (id_to_erase.count(l_id)) {
-            continue;
+    std::set<std::set<std::string>> words_in_documents;
+    for (const int document_id : search_server) {
+        std::set<std::string> temp;
+        for (auto [key, value] : search_server.GetWordFrequencies(document_id)) {
+            temp.insert(key);
         }
-        auto l_temp = search_server.GetWordFrequencies(l_id);
-        for (auto r_it = l_it + 1; r_it != search_server.end(); ++r_it) {
-            int r_id = *r_it;
-            auto r_temp = search_server.GetWordFrequencies(r_id);
-            if (l_temp.size() != r_temp.size()) {
-                continue;
-            }
-            bool is_duplicat = false;
-            for (auto [key, value] : l_temp) {
-                if (r_temp.count(key) != 0) {
-                    is_duplicat = true;
-                }
-                else {
-                    is_duplicat = false;
-                    break;
-                }
-            }
-            if (is_duplicat) {
-                id_to_erase.insert(r_id);
-            }
+        if (words_in_documents.count(temp)) {
+            id_to_erase.insert(document_id);
+        }
+        else {
+            words_in_documents.insert(temp);
         }
     }
     for (int i : id_to_erase) {
