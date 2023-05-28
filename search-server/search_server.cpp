@@ -90,7 +90,6 @@ void SearchServer::RemoveDocument(const std::execution::sequenced_policy&, int d
 }
 
 void SearchServer::RemoveDocument(const std::execution::parallel_policy&, int document_id) {
-    // Cоздаем вектор слов в документе, которые нужно удалить
     std::vector<std::string_view> str_to_remove(id_to_document_freqs_.at(document_id).size());
     transform(
         std::execution::par,
@@ -102,7 +101,6 @@ void SearchServer::RemoveDocument(const std::execution::parallel_policy&, int do
             return temp;
         }
     );
-    // ѕроходим по вектору и удал€ем данные из контейнера word_to_document_freqs_
     std::for_each(
         std::execution::par,
         str_to_remove.begin(),
@@ -120,7 +118,6 @@ std::tuple<std::vector<std::string_view>, DocumentStatus> SearchServer::MatchDoc
     auto query = ParseQuery(raw_query);
     std::vector<std::string_view> matched_words;
 
-    // ѕровер€ем документ document_id на минус слова
     for (std::string_view min_word : query.minus_words) {
         if (std::any_of(
             id_to_document_freqs_.at(document_id).begin(),
@@ -131,7 +128,6 @@ std::tuple<std::vector<std::string_view>, DocumentStatus> SearchServer::MatchDoc
             return { matched_words, documents_.at(document_id).status };
         }
     }
-    // ƒобавл€ем плюс слова из документа
     for (std::string_view plus_word : query.plus_words) {
         if (std::any_of(
             id_to_document_freqs_.at(document_id).begin(),
@@ -156,11 +152,9 @@ std::tuple<std::vector<std::string_view>, DocumentStatus> SearchServer::MatchDoc
     const std::execution::parallel_policy&,
     std::string_view raw_query,
     int document_id) const {
-    // ѕриводим запрос к стандартному виду
     const auto query = ParseQueryPar(raw_query);
     std::vector<std::string_view> matched_words;
     matched_words.reserve(query.plus_words.size());
-    // ѕровер€ем документ document_id на минус слова
     for (std::string_view min_word : query.minus_words) {
         if (std::any_of(std::execution::par,
             id_to_document_freqs_.at(document_id).begin(),
@@ -170,7 +164,6 @@ std::tuple<std::vector<std::string_view>, DocumentStatus> SearchServer::MatchDoc
             return { matched_words, documents_.at(document_id).status };
         }
     }
-    // ƒобавл€ем плюс слова из документа
     for (std::string_view plus_word : query.plus_words) {
         if (std::any_of(
             id_to_document_freqs_.at(document_id).begin(),
