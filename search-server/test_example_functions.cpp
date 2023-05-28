@@ -55,7 +55,7 @@ void TestFindAddedDocument() {
     const int doc_id = 42;
     const std::string content = "cat in the city"s;
     const std::vector<int> ratings = { 1, 2, 3 };
-    //ѕровер€ем что документ находитс€ по поисковому запросу
+    
     {
         SearchServer server("none"s);
         server.AddDocument(doc_id, content, DocumentStatus::ACTUAL, ratings);
@@ -64,14 +64,14 @@ void TestFindAddedDocument() {
         const Document& doc0 = found_docs[0];
         ASSERT_EQUAL_HINT(doc0.id, doc_id, "Releavant documents should be in search results"s);
     }
-    // ѕровер€ем, что нерелевантный документ не находитс€ по поисковому запросу
+    
     {
         SearchServer server("none"s);
         server.AddDocument(doc_id, content, DocumentStatus::ACTUAL, ratings);
         const auto found_docs = server.FindTopDocuments("dog"s);
         ASSERT_HINT(found_docs.empty(), "Not releavant documents shouldn't be in search results"s);
     }
-    // ѕровер€ем, что наход€тс€ все документы по поисковому запросу
+    
     {
         SearchServer server("none"s);
         server.AddDocument(1, "cat in the city"s, DocumentStatus::ACTUAL, ratings);
@@ -86,14 +86,14 @@ void TestExcludeMinusDocumentFromResults() {
     const int doc_id = 42;
     const std::string content = "cat in the city"s;
     const std::vector<int> ratings = { 1, 2, 3 };
-    // ѕровер€ем, что документы с минус словами не будут включены в выдачу
+    
     {
         SearchServer server("none"s);
         server.AddDocument(doc_id, content, DocumentStatus::ACTUAL, ratings);
         const auto found_docs = server.FindTopDocuments("cat -in"s);
         ASSERT_HINT(found_docs.empty(), "Documents witn minus words shouldn't be in search results"s);
     }
-    // ѕровер€ем, что документы без минус слов будут включены в выдачу
+    
     {
         SearchServer server("none"s);
         server.AddDocument(doc_id, content, DocumentStatus::ACTUAL, ratings);
@@ -108,7 +108,7 @@ void TestMatchingDocument() {
     const int doc_id = 42;
     const std::string content = "cat in the city"s;
     const std::vector<int> ratings = { 1, 2, 3 };
-    // ѕровер€ем, что вернулись все совпадени€ по словам
+    
     {
         SearchServer server("none"s);
         server.AddDocument(doc_id, content, DocumentStatus::ACTUAL, ratings);
@@ -122,7 +122,7 @@ void TestMatchingDocument() {
 
 void TestSortingDocumentsInRelevantOrder() {
     const std::vector<int> ratings = { 1, 2, 3 };
-    // ѕровер€ем, что документы отсортированы по релевантности, от большей к меньшей
+    
     {
         SearchServer server("none"s);
         server.AddDocument(1, "cat in the city"s, DocumentStatus::ACTUAL, ratings);
@@ -136,7 +136,7 @@ void TestSortingDocumentsInRelevantOrder() {
 void TestAverageRatingOfAddedDocument() {
     const int doc_id = 42;
     const std::string content = "cat in the city"s;
-    // ѕровер€ем, что средний рейтинг совпадает с заранее посчитанным
+    
     {
         const std::vector<int> ratings = { 1, 2, 3 };
         SearchServer server("none"s);
@@ -145,7 +145,7 @@ void TestAverageRatingOfAddedDocument() {
         const Document& doc0 = found_docs[0];
         ASSERT_EQUAL_HINT(doc0.rating, 2, "Incorrect average rating"s);
     }
-    // ѕровер€ем средний рейтинг при рейтинге 0
+    
     {
         const std::vector<int> ratings = { 0 };
         SearchServer server("none"s);
@@ -154,7 +154,7 @@ void TestAverageRatingOfAddedDocument() {
         const Document& doc0 = found_docs[0];
         ASSERT_EQUAL_HINT(doc0.rating, 0, "Incorrect average rating"s);
     }
-    // ѕровер€ем отрицательный средний рейтинг
+    
     {
         const std::vector<int> ratings = { -1, -2, -3 };
         SearchServer server("none"s);
@@ -163,7 +163,7 @@ void TestAverageRatingOfAddedDocument() {
         const Document& doc0 = found_docs[0];
         ASSERT_EQUAL_HINT(doc0.rating, -2, "Incorrect average rating"s);
     }
-    // ѕровер€ем средний рейтинг при оценках 0, больше и меньше 0
+   
     {
         const std::vector<int> ratings = { 0, -2, -3, 10, 5 };
         SearchServer server("none"s);
@@ -178,7 +178,7 @@ void TestFilterWithPredicateOfUser() {
     const int doc_id = 42;
     const std::string content = "cat in the city"s;
     const std::vector<int> ratings = { 1, 2, 3 };
-    // ѕровер€ем, что будут включены только документы отсе€ные функцией-предикатом
+    
     {
         SearchServer server("none"s);
         server.AddDocument(doc_id, content, DocumentStatus::ACTUAL, ratings);
